@@ -1,6 +1,6 @@
 # txt2mp3.nvim
 
-A high-quality, offline **Text-to-Speech (TTS)** plugin for Neovim. 
+A high-quality, offline **Text-to-Speech (TTS)** plugin for Neovim.
 
 It converts your current visual selection into an MP3 file using **Piper**
 (Neural Network Voices) and **Lame** (Encoding). The process runs
@@ -10,20 +10,21 @@ asynchronously, so it never freezes your editor.
 
 * **High Quality:** Uses [Piper](https://github.com/rhasspy/piper) for human-sounding, neural network speech.
 * **Offline:** No internet connection required after initial installation.
-* **Asynchronous:** Conversions happen in the background using `vim.system`
-(Neovim 0.10+).
+* **Asynchronous:** Conversions happen in the background using `vim.system` (Neovim 0.10+).
 * **Clean Output:** Pipes audio directly from generator to encoder, avoiding
 temporary `.wav` files.
 * **Zero Python Dependency:** Uses the standalone Piper binary.
 
 ## ⚡ Requirements
 
-1.  **Neovim 0.10+** (Required for async `vim.system`).
-2.  **Lame:** The MP3 encoder must be installed on your system.
+1. **Neovim 0.10+** (Required for async `vim.system`).
+2. **Lame:** The MP3 encoder must be installed on your system.
     * Arch Linux: `sudo pacman -S lame`
     * Ubuntu/Debian: `sudo apt install lame`
     * MacOS: `brew install lame`
-3.  **Piper:** The plugin can install this for you automatically (see below).
+3. **Curl or Wget:** Required for the plugin to automatically download Piper
+   during installation.
+4. **Piper:** The plugin can install this for you automatically (see below).
 
 ## 📦 Installation
 
@@ -40,29 +41,57 @@ plugin.
   
   -- The build script handles the dependency download automatically
   build = function()
-    local script = [[
-      mkdir -p ~/piper
-      cd ~/piper
-      if [ ! -f piper ]; then
-        echo "Downloading Piper..."
-        wget -O piper.tar.gz [https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz](https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz)
-        tar -xvf piper.tar.gz
-        mv piper/* .
-        rm -rf piper piper.tar.gz
+    -- 1. Get the ABSOLUTE path to avoid "~" expansion issues
+    local home = vim.fn.expand("~")
+    local piper_dir = home .. "/piper"
+
+    -- 2. Create a script to download dependencies (supports wget and curl)
+    local script = string.format([[
+      set -e
+      mkdir -p "%s"
+      cd "%s"
+
+      # Detect downloader
+      if command -v wget >/dev/null 2>&1; then
+          DL_CMD="wget -O"
+      elif command -v curl >/dev/null 2>&1; then
+          DL_CMD="curl -L -o"
+      else
+          echo "❌ Error: Neither wget nor curl found."
+          exit 1
       fi
+
+      # Download Piper if missing
+      if [ ! -f piper/piper ]; then
+        echo "⬇️ Downloading Piper..."
+        $DL_CMD piper.tar.gz [https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz](https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz)
+        tar -xf piper.tar.gz
+        rm piper.tar.gz
+      fi
+
+      # Download Voice if missing
       if [ ! -f voice.onnx ]; then
-        echo "Downloading Voice Model..."
-        wget -O voice.onnx [https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx](https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx)
-        wget -O voice.onnx.json [https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json](https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json)
+        echo "⬇️ Downloading Voice Model..."
+        $DL_CMD voice.onnx [https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx](https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx)
+        $DL_CMD voice.onnx.json [https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json](https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json)
       fi
-    ]]
-    os.execute("bash -c '" .. script .. "'")
+    ]], piper_dir, piper_dir)
+
+    -- 3. Run and capture output for debugging
+    local out = vim.fn.system(script)
+    if vim.v.shell_error ~= 0 then
+      vim.notify("❌ txt2mp3 Build Failed:\n" .. out, vim.log.levels.ERROR)
+    end
   end,
 
   config = function()
     require("txt2mp3").setup({
       output_dir = "~/Music",         -- Where to save the MP3s
       filename = "read_later.mp3",    -- Default filename
+      
+      -- Point to the extracted binary (Note: extraction creates a 'piper' subfolder)
+      piper_bin = vim.fn.expand("~/piper/piper/piper"), 
+      voice_model = vim.fn.expand("~/piper/voice.onnx"),
     })
 
     -- Optional: Keybinding
@@ -79,6 +108,8 @@ If you prefer to manage Piper yourself:
 2.  Place them in a folder (e.g., `~/piper`).
 3.  Install the plugin via your package manager.
 4.  Point the configuration to your files:
+
+<!-- end list -->
 
 ```lua
 require("txt2mp3").setup({
@@ -110,12 +141,22 @@ installation path:
   output_dir = "~/Music",
   filename = "nvim_audio.mp3",
   piper_dir  = vim.fn.expand("~/piper"),
-  piper_bin  = vim.fn.expand("~/piper/piper"),
+  piper_bin  = vim.fn.expand("~/piper/piper/piper"), 
   voice_model = vim.fn.expand("~/piper/voice.onnx"),
 }
 ```
 
 ## 🔧 Troubleshooting
+
+**Piper folder is empty / Plugin not working**
+
+  * If the `~/piper` folder is empty or the installation didn't run
+  automatically, you can force Lazy to rebuild the plugin dependencies by
+  running:
+
+    ```vim
+    :Lazy build txt2mp3.nvim
+    ```
 
 **Error: `is a directory`**
 
@@ -128,11 +169,22 @@ installation path:
 
 **Audio is too fast/slow**
 
-  * You can edit the command in `lua/txt2mp3.lua` to include `--length_scale 1.1` (slower) or `0.9` (faster).
+  * You can edit the command in `lua/txt2mp3.lua` to include `--length_scale
+  1.1` (slower) or `0.9` (faster).
 
 ## 📄 License
 
 MIT
+
+### Third-Party Licenses
+
+This plugin orchestrates the use of external binaries. Please respect their
+respective licenses:
+
+  * **Piper:** [MIT License](https://github.com/rhasspy/piper/blob/master/LICENSE.md).
+  * **Lame:** [LGPL License](https://lame.sourceforge.io/about.php).
+
+<!-- end list -->
 
 ```
 ```
