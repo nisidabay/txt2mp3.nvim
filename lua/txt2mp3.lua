@@ -5,9 +5,10 @@ local config = {
 	filename = "nvim_audio.mp3",
 
 	-- PATHS FOR CLEAN INSTALL
-	piper_dir = vim.fn.expand("~/piper"), -- The folder containing .so libraries
-	piper_bin = vim.fn.expand("~/piper/piper"), -- The executable binary
-	voice_model = vim.fn.expand("~/piper/voice.onnx"),
+	piper_dir = vim.fn.expand("~/piper/piper"), -- The folder containing .so libraries
+	piper_bin = vim.fn.expand("~/piper/piper/piper"), -- The executable binary
+	voice = nil, -- Voice key from Piper catalog (e.g., "en_US-lessac-medium")
+	voice_model = vim.fn.expand("~/piper/voice.onnx"), -- Path to .onnx file (overrides voice if set)
 }
 
 function M.setup(user_opts)
@@ -53,13 +54,15 @@ function M.convert_selection()
 	vim.notify("🎙️ Converting...", vim.log.levels.INFO)
 
 	-- COMMAND
-	-- We set LD_LIBRARY_PATH to ~/piper so it finds the .so files
+	-- We set LD_LIBRARY_PATH so it finds the .so files
+	-- Use voice_model if set (backwards compat), otherwise use voice key
+	local model_arg = config.voice_model and ("--model " .. config.voice_model) or ("--voice " .. config.voice)
 	local cmd = string.format(
-		"export LD_LIBRARY_PATH=%s:$LD_LIBRARY_PATH; echo '%s' | %s --model %s --output_file - | lame -b 192 --quiet - '%s'",
+		"export LD_LIBRARY_PATH=%s:$LD_LIBRARY_PATH; echo '%s' | %s %s --output_file - | lame -b 192 --quiet - '%s'",
 		config.piper_dir,
 		safe_text,
 		config.piper_bin,
-		config.voice_model,
+		model_arg,
 		output_path
 	)
 

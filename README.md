@@ -89,9 +89,11 @@ plugin.
       output_dir = "~/Music",         -- Where to save the MP3s
       filename = "read_later.mp3",    -- Default filename
       
-      -- Point to the extracted binary (Note: extraction creates a 'piper' subfolder)
+      -- Point to the extracted binary (Note: extraction creates 'piper/piper/' structure)
       piper_bin = vim.fn.expand("~/piper/piper/piper"), 
-      voice_model = vim.fn.expand("~/piper/voice.onnx"),
+      piper_dir = vim.fn.expand("~/piper/piper"), -- Directory with .so libraries
+      voice_model = vim.fn.expand("~/piper/voice.onnx"), -- Path to .onnx file
+      -- voice = "en_US-lessac-medium", -- Alternative: use voice key from Piper catalog
     })
 
     -- Optional: Keybinding
@@ -113,10 +115,10 @@ If you prefer to manage Piper yourself:
 
 ```lua
 require("txt2mp3").setup({
-  piper_dir   = vim.fn.expand("~/path/to/piper_folder"),
-  -- Point specifically to the executable binary inside the folder
-  piper_bin   = vim.fn.expand("~/path/to/piper_folder/piper"),
+  piper_dir = vim.fn.expand("~/path/to/piper/piper"), -- Directory with .so libraries
+  piper_bin = vim.fn.expand("~/path/to/piper/piper/piper"), -- Executable binary
   voice_model = vim.fn.expand("~/path/to/voice.onnx"),
+  -- voice = "en_US-lessac-medium", -- Alternative: voice key from catalog
 })
 ```
 
@@ -140,11 +142,28 @@ installation path:
 {
   output_dir = "~/Music",
   filename = "nvim_audio.mp3",
-  piper_dir  = vim.fn.expand("~/piper"),
-  piper_bin  = vim.fn.expand("~/piper/piper/piper"), 
-  voice_model = vim.fn.expand("~/piper/voice.onnx"),
+  piper_dir = vim.fn.expand("~/piper/piper"), -- Directory with .so libraries
+  piper_bin = vim.fn.expand("~/piper/piper/piper"), -- Executable binary
+  voice = nil, -- Voice key from Piper catalog (e.g., "en_US-lessac-medium")
+  voice_model = vim.fn.expand("~/piper/voice.onnx"), -- Path to .onnx (overrides voice)
 }
 ```
+
+### Voice Configuration
+
+You can configure the voice in two ways:
+
+1. **Voice Key** (recommended for Piper catalog voices):
+   ```lua
+   voice = "en_US-lessac-medium"  -- Uses Piper's built-in voice catalog
+   ```
+
+2. **Voice Model Path** (backwards compatible, custom voice files):
+   ```lua
+   voice_model = vim.fn.expand("~/piper/voice.onnx")  -- Direct path to .onnx file
+   ```
+
+If both are set, `voice_model` takes precedence.
 
 ## 🔧 Troubleshooting
 
